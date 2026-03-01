@@ -4,6 +4,8 @@ import 'package:to_do_app/constants/colors.dart';
 import 'package:to_do_app/model/todo_model.dart';
 import 'package:to_do_app/ui/widgets/aesthetic_task_card.dart';
 import 'package:to_do_app/ui/widgets/filter_chips_row.dart';
+import 'dart:convert'; // Required to convert Maps to JSON Strings
+import 'package:shared_preferences/shared_preferences.dart'; // Our local storage tool
 
 class TodoListScreen extends StatefulWidget {
   const TodoListScreen({super.key});
@@ -32,6 +34,35 @@ class _TodoListScreenState extends State<TodoListScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadTodos();
+  }
+
+  /// Reads the saved JSON string from the hard drive and converts it back to a List.
+  Future<void> _loadTodos() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? savedDataString = prefs.getString('daily_intentions_data');
+
+    if (savedDataString != null) {
+      final List<dynamic> decodedData = jsonDecode(savedDataString);
+      setState(() {
+        myTodos = decodedData.map((item) => TodoModel.fromJson(item)).toList();
+      });
+    }
+  }
+
+  /// Converts the current list to a JSON string and saves it to the hard drive.
+  Future<void> _saveTodos() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final String encodedData = jsonEncode(
+      myTodos.map((todo) => todo.toJson()).toList(),
+    );
+
+    await prefs.setString('daily_intentions_data', encodedData);
+  }
+
   void dispose() {
     _titleController.dispose();
     super.dispose();
@@ -41,6 +72,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
     setState(() {
       myTodos.removeWhere((todo) => todo.id == id);
     });
+    _saveTodos();
   }
 
   void _showTaskBottomSheet({TodoModel? existingTodo}) {
@@ -104,6 +136,8 @@ class _TodoListScreenState extends State<TodoListScreen> {
                     myTodos.add(newTask);
                   }
                 });
+
+                _saveTodos();
 
                 _titleController.clear();
                 Navigator.pop(context);
@@ -196,6 +230,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
                               currentTodo.isCompleted =
                                   !currentTodo.isCompleted;
                             });
+                            _saveTodos();
                           },
                         );
                       },
