@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:to_do_app/constants/colors.dart';
-import '../model/todo_model.dart';
+import 'package:to_do_app/model/todo_model.dart';
+import 'package:to_do_app/ui/widgets/aesthetic_task_card.dart';
+import 'package:to_do_app/ui/widgets/filter_chips_row.dart';
 
 class TodoListScreen extends StatefulWidget {
   const TodoListScreen({super.key});
@@ -13,6 +15,21 @@ class TodoListScreen extends StatefulWidget {
 class _TodoListScreenState extends State<TodoListScreen> {
   List<TodoModel> myTodos = [];
   final TextEditingController _titleController = TextEditingController();
+  TodoFilter currentFilter = TodoFilter.all;
+
+  /// Returns a temporary list of tasks based on the [currentFilter].
+  /// This ensures the original [myTodos] list is never accidentally modified or deleted.
+  List<TodoModel> get filteredTodos {
+    switch (currentFilter) {
+      case TodoFilter.active:
+        return myTodos.where((todo) => !todo.isCompleted).toList();
+      case TodoFilter.completed:
+        return myTodos.where((todo) => todo.isCompleted).toList();
+      case TodoFilter.all:
+      default:
+        return myTodos;
+    }
+  }
 
   @override
   void dispose() {
@@ -20,89 +37,13 @@ class _TodoListScreenState extends State<TodoListScreen> {
     super.dispose();
   }
 
-  // CORE LOGIC: Add Task
-  void _addNewTask() {
-    if (_titleController.text.trim().isEmpty) return;
-
-    final newTask = TodoModel(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: _titleController.text,
-      createdAt: DateTime.now(),
-    );
-
-    setState(() {
-      myTodos.add(newTask);
-    });
-
-    _titleController.clear();
-    Navigator.pop(context);
-  }
-
-  // CORE LOGIC: Delete Task
   void _deleteTask(String id) {
     setState(() {
       myTodos.removeWhere((todo) => todo.id == id);
     });
   }
 
-  // UI: Task Card with Swipe-to-Delete
-  Widget _buildTaskCard(TodoModel todo, int index) {
-    return Dismissible(
-      key: Key(todo.id), // Unique key for Dismissible
-      direction: DismissDirection.endToStart,
-      onDismissed: (direction) => _deleteTask(todo.id),
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        decoration: BoxDecoration(
-          color: Colors.red[50],
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Icon(Icons.delete_outline, color: Colors.red),
-      ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.pink.withOpacity(0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: ListTile(
-          onLongPress: () =>
-              _showTaskBottomSheet(existingTodo: todo), // Edit on long press
-          leading: IconButton(
-            icon: Icon(
-              todo.isCompleted
-                  ? Icons.auto_awesome
-                  : Icons.radio_button_unchecked,
-              color: Colors.pink[200],
-            ),
-            onPressed: () {
-              setState(() => todo.isCompleted = !todo.isCompleted);
-            },
-          ),
-          title: Text(
-            todo.title,
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w500,
-              color: kTextGrey,
-              decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // UI: Bottom Sheet for Adding/Editing Tasks
   void _showTaskBottomSheet({TodoModel? existingTodo}) {
-    // if we have an existingTodo, we are in edit mode, otherwise we are adding a new task
     if (existingTodo != null) {
       _titleController.text = existingTodo.title;
     } else {
@@ -126,7 +67,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Task title
             Text(
               existingTodo != null ? "Edit Intention" : "New Intention",
               style: GoogleFonts.cormorantGaramond(
@@ -152,13 +92,10 @@ class _TodoListScreenState extends State<TodoListScreen> {
               onPressed: () {
                 if (_titleController.text.trim().isEmpty) return;
 
-                // State management for both adding and editing tasks
                 setState(() {
                   if (existingTodo != null) {
-                    // Update the existing task's title
                     existingTodo.title = _titleController.text;
                   } else {
-                    // Add a new task to the list
                     final newTask = TodoModel(
                       id: DateTime.now().millisecondsSinceEpoch.toString(),
                       title: _titleController.text,
@@ -180,7 +117,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
                 ),
                 minimumSize: const Size(double.infinity, 50),
               ),
-              // Button text changes based on whether we're adding or editing
               child: Text(
                 existingTodo != null ? "Update Intention" : "Add to Plan",
               ),
@@ -194,6 +130,8 @@ class _TodoListScreenState extends State<TodoListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final itemsToShow = filteredTodos;
+
     return Scaffold(
       backgroundColor: kCreamIvory,
       appBar: AppBar(
@@ -225,8 +163,18 @@ class _TodoListScreenState extends State<TodoListScreen> {
                 ),
               ),
             ),
+
+            FilterChipsRow(
+              currentFilter: currentFilter,
+              onFilterChanged: (newFilter) {
+                setState(() {
+                  currentFilter = newFilter;
+                });
+              },
+            ),
+            const SizedBox(height: 15),
             Expanded(
-              child: myTodos.isEmpty
+              child: itemsToShow.isEmpty
                   ? Center(
                       child: Text(
                         "No tasks yet... Start blooming! ✨",
@@ -234,9 +182,22 @@ class _TodoListScreenState extends State<TodoListScreen> {
                       ),
                     )
                   : ListView.builder(
-                      itemCount: myTodos.length,
+                      itemCount: itemsToShow.length,
                       itemBuilder: (context, index) {
-                        return _buildTaskCard(myTodos[index], index);
+                        final currentTodo = itemsToShow[index];
+
+                        return AestheticTaskCard(
+                          todo: currentTodo,
+                          onDelete: () => _deleteTask(currentTodo.id),
+                          onLongPress: () =>
+                              _showTaskBottomSheet(existingTodo: currentTodo),
+                          onToggle: () {
+                            setState(() {
+                              currentTodo.isCompleted =
+                                  !currentTodo.isCompleted;
+                            });
+                          },
+                        );
                       },
                     ),
             ),
