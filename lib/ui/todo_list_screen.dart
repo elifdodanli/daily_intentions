@@ -74,6 +74,8 @@ class _TodoListScreenState extends State<TodoListScreen> {
           ],
         ),
         child: ListTile(
+          onLongPress: () =>
+              _showTaskBottomSheet(existingTodo: todo), // Edit on long press
           leading: IconButton(
             icon: Icon(
               todo.isCompleted
@@ -98,8 +100,15 @@ class _TodoListScreenState extends State<TodoListScreen> {
     );
   }
 
-  // UI: Input Bottom Sheet
-  void _showAddTaskBottomSheet() {
+  // UI: Bottom Sheet for Adding/Editing Tasks
+  void _showTaskBottomSheet({TodoModel? existingTodo}) {
+    // if we have an existingTodo, we are in edit mode, otherwise we are adding a new task
+    if (existingTodo != null) {
+      _titleController.text = existingTodo.title;
+    } else {
+      _titleController.clear();
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -117,8 +126,9 @@ class _TodoListScreenState extends State<TodoListScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Task title
             Text(
-              "New Focus",
+              existingTodo != null ? "Edit Intention" : "New Intention",
               style: GoogleFonts.cormorantGaramond(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -137,10 +147,30 @@ class _TodoListScreenState extends State<TodoListScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: _addNewTask,
+              onPressed: () {
+                if (_titleController.text.trim().isEmpty) return;
+
+                // State management for both adding and editing tasks
+                setState(() {
+                  if (existingTodo != null) {
+                    // Update the existing task's title
+                    existingTodo.title = _titleController.text;
+                  } else {
+                    // Add a new task to the list
+                    final newTask = TodoModel(
+                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      title: _titleController.text,
+                      createdAt: DateTime.now(),
+                    );
+                    myTodos.add(newTask);
+                  }
+                });
+
+                _titleController.clear();
+                Navigator.pop(context);
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: kMarshmallowPink,
                 foregroundColor: kTextGrey,
@@ -150,7 +180,10 @@ class _TodoListScreenState extends State<TodoListScreen> {
                 ),
                 minimumSize: const Size(double.infinity, 50),
               ),
-              child: const Text("Add to Plan"),
+              // Button text changes based on whether we're adding or editing
+              child: Text(
+                existingTodo != null ? "Update Intention" : "Add to Plan",
+              ),
             ),
             const SizedBox(height: 30),
           ],
@@ -213,7 +246,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color.fromARGB(255, 255, 176, 202),
         elevation: 2,
-        onPressed: _showAddTaskBottomSheet,
+        onPressed: _showTaskBottomSheet,
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );
